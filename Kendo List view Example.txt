@@ -1,0 +1,190 @@
+import kuiListView from "kendo-ui-core";
+import React, { Component } from "react";
+import ReactDOM from "react-dom";
+import deepDiff from "deep-diff";
+import KendoPager from './KendoPager';
+
+// create a React component, that is a wrapper for a Kendo UI widget
+class KendoListView extends Component {
+
+    state = { columns: this.props.options.columns, Name:"" };
+    //component is in the DOM, so do stuff to it in this callback
+    componentDidMount() {
+
+        //get, child element node for this component
+        var elementNode = ReactDOM.findDOMNode(this);
+
+        //determine if a selector was passed on which to invoke the KUI widget
+        if (this.props.selector) {
+            elementNode = elementNode.querySelector(this.props.selector);
+        }
+
+        const targetElement = elementNode.querySelector("#listView");
+        //instantiate and save reference to the Kendo UI widget on elementNode
+        //note I am not using jQuery plugin to instantiate, don't want to wait for namespace on $.fn
+
+        const template = this.renderTemplate();
+        const newOptions = {
+            ...this.props.options,
+            template
+        };
+
+        this.widgetInstance = new kuiListView.ui.ListView(
+            targetElement,
+            newOptions,
+        );
+
+        //if props are avaliable for events, triggers, unbind events, or methods make it happen now
+        this.props.events ? this.bindEventsToKendoWidget(this.props.events) : null;
+        this.props.methods ? this.callKendoWidgetMethods(this.props.methods) : null;
+        this.props.triggerEvents
+            ? this.triggerKendoWidgetEvents(this.props.triggerEvents)
+            : null;
+    }
+
+    //instance methods for updating widget
+    triggerKendoWidgetEvents(events) {
+        events.forEach(function (event) {
+            //loop over events, and trigger
+            this.widgetInstance.trigger(event);
+        }, this);
+    }
+
+    bindEventsToKendoWidget(events) {
+        Object.keys(events).forEach(function (event) {
+            //loop over events and bind
+            this.widgetInstance.bind(event, events[event]);
+        }, this);
+    }
+    unbindEventsToKendoWidget(events) {
+        events.forEach(function (event) {
+            //loop ove revents and unbind
+            this.widgetInstance.unbind(event);
+        }, this);
+    }
+    callKendoWidgetMethods(methods) {
+        Object.keys(methods).forEach(function (method) {
+            //loop over methods and call
+            this.widgetInstance[method](...methods[method]);
+        }, this);
+    }
+
+    //not called on inital render, but whenever parent state changes this is called
+    componentWillReceiveProps(nextProps) {
+        //always update the widget with nextProp changes if avaliable
+        if (nextProps.events) {
+            this.bindEventsToKendoWidget(nextProps.events);
+        }
+
+        if (this.widgetInstance.setOptions) {
+            if (nextProps.options) {
+                this.widgetInstance.setOptions(nextProps.options);
+            }
+        }
+
+        //try and determine if any of the nextProps have changed, and if so, update the widget
+        if (nextProps.methods) {
+            if (deepDiff(nextProps.methods, this.props.methods)) {
+                this.callKendoWidgetMethods(nextProps.methods);
+            }
+        }
+
+        if (nextProps.unbindEvents) {
+            if (deepDiff(nextProps.unbindEvents, this.props.unbindEvents)) {
+                this.unbindEventsToKendoWidget(nextProps.unbindEvents);
+            }
+        }
+
+        if (nextProps.triggerEvents) {
+            if (deepDiff(nextProps.triggerEvents, this.props.triggerEvents)) {
+                this.triggerKendoWidgetEvents(nextProps.triggerEvents);
+            }
+        }
+    }
+
+    //don't run render again, create widget once, then leave it alone
+    shouldComponentUpdate() {
+        return true;
+    }
+
+    //destory it, when the component is unmouted
+    componentWillUnmount() {
+        this.widgetInstance.destroy();
+    }
+
+    renderTemplate() {
+        const { columns } = this.props.options;
+        let template = "<tr>";
+        for (var i = 0; i < columns.length; i++) {
+            template = template + "<td>${" + columns[i].field + "}</td>";
+        }
+        template = template + "</tr>";
+        return template;
+    }
+
+    setSort = (field) => {
+        let newColumns = this.state.columns;
+        let sortDirection = "";
+        for (var i = 0; i < newColumns.length; i++) {
+            if (newColumns[i].field === field) {
+                if (newColumns[i].sortDirection === undefined || newColumns[i].sortDirection === "") {
+                    newColumns[i].sortDirection = "asc";
+                }
+                else if (newColumns[i].sortDirection === "desc") {
+                    newColumns[i].sortDirection = "asc";
+                }
+                else {
+                    newColumns[i].sortDirection = "desc";
+                }
+                sortDirection = newColumns[i].sortDirection;
+            }
+            else {
+                newColumns[i].sortDirection = "";
+            }
+        }
+        this.widgetInstance.element.data("kendoListView").dataSource.sort({ field: field, dir: sortDirection });
+        this.setState({
+            
+        });
+    }
+
+    setFilter = () => {
+
+    }
+
+    //use the passed in React nodes or a plain <div> if no React child nodes are defined
+    render() {
+        const { columns } = this.state;
+
+        const renderGridHeader = columns.map(column => (
+            <th>
+                <button className="k-link-button" onClick={() => { this.setSort(column.field) }}>
+                    {column.title}
+                    <span className={"k-icon k-i-sort-" + column.sortDirection + "-sm"} />
+                </button>
+                <button className="k-link-button k-grid-filter pull-right">
+                    <span className="k-icon k-i-filter">
+                    </span>
+                </button>
+            </th>
+        ));
+
+        return (
+            <div className="k-grid k-widget k-display-block" data-role="grid">
+                <table className="table k-grid">
+                    <thead>
+                        <tr>
+                            {renderGridHeader}
+                        </tr>
+                    </thead>
+                    <tbody id="listView" data-reload="true" />
+                </table>
+
+                <KendoPager id="pager" options={this.props.options} className="k-pager-wrap" />
+            </div>
+        );
+    }
+}
+
+//export the wrapped component
+export default KendoListView;
