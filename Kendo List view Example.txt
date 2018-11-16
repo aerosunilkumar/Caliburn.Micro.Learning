@@ -188,3 +188,19 @@ class KendoListView extends Component {
 
 //export the wrapped component
 export default KendoListView;
+
+.k-grid {
+    margin-bottom: 0px !important
+}
+
+.k-link-button {
+    background: none;
+    border: none;
+}
+
+    .k-link-button:active {
+        background: none;
+        border: none;
+        outline: none;
+    }
+
